@@ -163,6 +163,11 @@ mouse_up(CelluloidController *controller, const guint button)
 	g_free(name);
 }
 
+// List of "keystr"s to block event propagation for
+const char *keystr_blocklist[] = {
+	" ", // https://github.com/celluloid-player/celluloid/issues/943
+	NULL };
+
 static gboolean
 key_pressed_handler(	GtkEventControllerKey *key_controller,
 			guint keyval,
@@ -183,7 +188,7 @@ key_pressed_handler(	GtkEventControllerKey *key_controller,
 		g_free(keystr);
 	}
 
-	return keystr && !searching;
+	return keystr && !searching && g_strv_contains(keystr_blocklist, keystr);
 }
 
 static void
