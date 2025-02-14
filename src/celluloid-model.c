@@ -81,6 +81,7 @@ struct _CelluloidModel
 	gboolean window_maximized;
 	gdouble window_scale;
 	gdouble display_fps;
+	GStrv keybinding_list;
 };
 
 struct _CelluloidModelClass
@@ -826,6 +827,7 @@ celluloid_model_init(CelluloidModel *model)
 	model->window_maximized = FALSE;
 	model->window_scale = 1.0;
 	model->display_fps = 0.0;
+	model->keybinding_list = NULL;
 }
 
 CelluloidModel *
@@ -895,6 +897,33 @@ celluloid_model_initialize(CelluloidModel *model)
 		g_object_set(model, "loop-playlist", loop_playlist, NULL);
 	}
 
+	GStrvBuilder *builder = g_strv_builder_new();
+	mpv_node input_bindings;
+	gint err = celluloid_mpv_get_property(mpv, "input-bindings", MPV_FORMAT_NODE, &input_bindings);
+	//printf("error value is: %d\n", err);
+	//printf("node format is: %d\n", input_bindings.format);
+	g_assert(input_bindings.format == MPV_FORMAT_NODE_ARRAY);
+
+	mpv_node_list *list = input_bindings.u.list;
+	for (int i = 0; i < list->num; i++) {
+		mpv_node *item = &list->values[i];
+		g_assert(item->format == MPV_FORMAT_NODE_MAP);
+
+		mpv_node_list *values = item->u.list;
+		for (int j = 0; j < values->num; j++) {
+			char *key = values->keys[j];
+			//printf("key: %s\n", key);
+			if (g_strcmp0(key, "key") == 0) {
+				mpv_node *value = &values->values[j];
+				g_assert(value->format == MPV_FORMAT_STRING);
+				//printf("value: %s\n", value->u.string);
+				g_strv_builder_add(builder, value->u.string);
+			}
+		}
+	}
+	model->keybinding_list = g_strv_builder_end(builder);
+
+
 	g_object_unref(win_settings);
 }
 
@@ -951,6 +980,12 @@ celluloid_model_key_press(CelluloidModel *model, const gchar* keystr)
 
 	g_debug("Sent '%s' key press to mpv", keystr);
 	celluloid_mpv_command_async(CELLULOID_MPV(model), cmd);
+}
+
+gboolean
+celluloid_model_key_binding_exists(CelluloidModel *model, const gchar* keystr)
+{
+	return g_strv_contains((const char * const *)model->keybinding_list, keystr);
 }
 
 void
